@@ -43,3 +43,11 @@
 /.vs
 /Debug
 /x64/Debug
+/Spectra-Build-Tools/ccache
+/Spectra-Build-Tools/clang
+/Spectra-Build-Tools/Debug
+/Spectra-Build-Tools/runtime
+/Spectra-Build-Tools/x64/Debug
+/Spectra-Build-Tools/Spectra-Build-Tools.vcxproj
+/Spectra-Build-Tools/Spectra-Build-Tools.vcxproj.filters
+/Spectra-Build-Tools/Spectra-Build-Tools.vcxproj.user
