@@ -1,0 +1,40 @@
+name: Publish Artifacts
+
+on:
+  push:
+    tags:
+      - "v*"   # e.g. v1.0.0
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # Example: build with CMake
+      - name: Build project
+        run: |
+          mkdir build && cd build
+          cmake ..
+          cmake --build . --config Release
+
+      # Package your build outputs
+      - name: Package Artifacts
+        run: |
+          VERSION=${GITHUB_REF#refs/tags/v}
+          mkdir -p artifacts/com/mycompany/mylib/$VERSION
+          
+          # Example: package for Linux
+          tar czf artifacts/com/mycompany/mylib/$VERSION/mylib-$VERSION-linux-x86_64.tar.gz build/bin/*
+          
+          # Example: package for Windows (if cross-compiled)
+          # zip artifacts/com/mycompany/mylib/$VERSION/mylib-$VERSION-windows-x86_64.zip build/bin/*
+
+      # Deploy to GitHub Pages
+      - name: Deploy to Pages
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./artifacts
