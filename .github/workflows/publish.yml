@@ -3,36 +3,30 @@ name: Publish Artifacts
 on:
   push:
     tags:
-      - "v*"   # e.g. v1.0.0
+      - "v*"
+  workflow_dispatch: # allow manual run too
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: windows-latest   # use Windows runner
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      # Example: build with CMake
-      - name: Build project
-        run: |
-          mkdir build && cd build
-          cmake ..
-          cmake --build . --config Release
+      - name: Set up MSBuild
+        uses: microsoft/setup-msbuild@v2
 
-      # Package your build outputs
+      - name: Build with MSBuild
+        run: msbuild Spectra-Build-Tools.sln /p:Configuration=Release
+
       - name: Package Artifacts
         run: |
-          VERSION=${GITHUB_REF#refs/tags/v}
-          mkdir -p artifacts/com/mycompany/mylib/$VERSION
-          
-          # Example: package for Linux
-          tar czf artifacts/com/mycompany/mylib/$VERSION/mylib-$VERSION-linux-x86_64.tar.gz build/bin/*
-          
-          # Example: package for Windows (if cross-compiled)
-          # zip artifacts/com/mycompany/mylib/$VERSION/mylib-$VERSION-windows-x86_64.zip build/bin/*
+          set VERSION=${GITHUB_REF#refs/tags/v}
+          mkdir artifacts\sbt\spectraengine\sbt\%VERSION%
+          copy x64\Release\*.dll artifacts\org\spectraengine\sbt\%VERSION%\sbt-%VERSION%-windows-x64.dll
+          copy x64\Release\*.exe artifacts\org\spectraengine\sbt\%VERSION%\sbt-%VERSION%-windows-x64.exe
 
-      # Deploy to GitHub Pages
       - name: Deploy to Pages
         uses: peaceiris/actions-gh-pages@v4
         with:
