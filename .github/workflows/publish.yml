@@ -11,6 +11,9 @@ jobs:
     runs-on: windows-latest   # use Windows runner
 
     steps:
+      - name: Add CNAME
+        run: echo "maven.spectraengine.org" > artifacts/CNAME
+
       - name: Checkout
         uses: actions/checkout@v4
 
@@ -23,7 +26,7 @@ jobs:
       - name: Package Artifacts
         run: |
           set VERSION=${GITHUB_REF#refs/tags/v}
-          mkdir artifacts\sbt\spectraengine\sbt\%VERSION%
+          mkdir mkdir artifacts\org\spectraengine\sbt\%VERSION%
           copy x64\Release\*.dll artifacts\org\spectraengine\sbt\%VERSION%\sbt-%VERSION%-windows-x64.dll
           copy x64\Release\*.exe artifacts\org\spectraengine\sbt\%VERSION%\sbt-%VERSION%-windows-x64.exe
 
@@ -31,4 +34,5 @@ jobs:
         uses: peaceiris/actions-gh-pages@v4
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_branch: gh-pages
           publish_dir: ./artifacts
