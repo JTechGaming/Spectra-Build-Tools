@@ -4,7 +4,10 @@ on:
   push:
     tags:
       - "v*"
-  workflow_dispatch: # allow manual run too
+  workflow_dispatch:
+
+permissions:
+  contents: write   # required for gh-pages deploy
 
 jobs:
   build:
