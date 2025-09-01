@@ -12,7 +12,10 @@ jobs:
 
     steps:
       - name: Add CNAME
-        run: echo "maven.spectraengine.org" > artifacts/CNAME
+        run: |
+          mkdir artifacts
+          "maven.spectraengine.org" | Out-File -FilePath artifacts/CNAME -Encoding ASCII
+        shell: pwsh
 
       - name: Checkout
         uses: actions/checkout@v4
