@@ -42,28 +42,51 @@ jobs:
         shell: pwsh
 
       - name: Generate index.html
+        shell: pwsh
         run: |
-            function Get-FileTree($path, $relative) {
-              $html = ""
-              foreach ($item in Get-ChildItem -Force $path) {
-                $relPath = if ($relative) { "$relative/$($item.Name)" } else { $item.Name }
-                if ($item.PSIsContainer) {
-                  $html += "<tr><td class='icon'>📁</td><td class='name'><a href='$relPath/'>$($item.Name)/</a></td><td>folder</td><td class='right'></td></tr>"
-                  $html += Get-FileTree $item.FullName $relPath
-                } else {
-                  $size = [Math]::Round(($item.Length / 1KB), 1)
-                  $unit = "KB"
-                  if ($size -lt 1) { $size = $item.Length; $unit = "B" }
-                  elseif ($size -ge 1024) { $size = [Math]::Round($size / 1024, 1); $unit = "MB" }
-                  $html += "<tr><td class='icon'>📄</td><td class='name'><a href='$relPath'>$($item.Name)</a></td><td>file</td><td class='right'>$size $unit</td></tr>"
-                }
-              }
-              return $html
+            function HtmlEscape([string]$s) {
+              if ($null -eq $s) { return "" }
+              return ($s -replace '&','&amp;' -replace '<','&lt;' -replace '>','&gt;' -replace '"','&quot;')
             }
 
-            $tree = Get-FileTree "artifacts" ""
+            function HumanSize([long]$bytes) {
+              if ($bytes -lt 1024) { return "$bytes B" }
+              $k = [math]::Round($bytes / 1024.0, 1)
+              if ($k -lt 1024) { return "$k KB" }
+              $m = [math]::Round($k / 1024.0, 1)
+              if ($m -lt 1024) { return "$m MB" }
+              $g = [math]::Round($m / 1024.0, 1)
+              return "$g GB"
+            }
 
-            $html = @"
+            # Recursively generate index.html in each directory
+            function Generate-Index([string]$dir) {
+              $hide = @("CNAME","index.html","404.html",".nojekyll")
+              $dirs  = Get-ChildItem -Directory -Force -Path $dir -ErrorAction SilentlyContinue | Sort-Object Name
+              $files = Get-ChildItem -File -Force -Path $dir -ErrorAction SilentlyContinue | Sort-Object Name
+
+              $rows = ""
+
+              # Directories first
+              foreach ($d in $dirs) {
+                $name = $d.Name
+                $display = HtmlEscape("$name/")
+                $href = "./" + [uri]::EscapeDataString($name) + "/"
+                $rows += "<tr><td class='icon'>📁</td><td class='name'><a href='$href'>$display</a></td><td>folder</td><td class='right'></td></tr>`n"
+              }
+
+              # Then files
+              foreach ($f in $files) {
+                if ($hide -contains $f.Name) { continue }
+                $name = $f.Name
+                $display = HtmlEscape($name)
+                $href = "./" + [uri]::EscapeDataString($name)
+                $size = HumanSize($f.Length)
+                $rows += "<tr><td class='icon'>📄</td><td class='name'><a href='$href'>$display</a></td><td>file</td><td class='right'>$size</td></tr>`n"
+              }
+
+              # Build full HTML (same look & feel as you asked)
+              $html = @"
             <!doctype html>
             <html lang="en">
             <head>
@@ -73,13 +96,18 @@ jobs:
               <style>
                 :root { --fg:#0f172a; --muted:#475569; --bg:#ffffff; --card:#f8fafc; --link:#2563eb; --border:#e2e8f0; }
                 * { box-sizing: border-box; }
-                body { margin:0; font:14px/1.45 system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,Cantarell,Noto Sans,Arial,"Apple Color Emoji","Segoe UI Emoji"; color:var(--fg); background:var(--bg); }
+                body { margin:0; font:14px/1.45 system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, Noto Sans, Arial, "Apple Color Emoji","Segoe UI Emoji"; color:var(--fg); background:var(--bg); }
                 header { padding:20px 16px; border-bottom:1px solid var(--border); background:#fff; position:sticky; top:0; }
                 .wrap { max-width:980px; margin:0 auto; }
                 h1 { margin:0 0 6px 0; font-size:18px; }
                 .muted { color:var(--muted); }
+                nav.breadcrumbs { margin:12px 0 0; font-size:13px; }
+                nav.breadcrumbs a { color:var(--link); text-decoration:none; }
+                nav.breadcrumbs span.sep { color:var(--muted); margin:0 6px; }
                 main { padding:18px 16px 48px; }
                 .panel { background:var(--card); border:1px solid var(--border); border-radius:12px; overflow:hidden; }
+                .toolbar { display:flex; align-items:center; gap:8px; padding:10px 12px; border-bottom:1px solid var(--border); background:#fff; }
+                .toolbar input { width:260px; max-width:100%; padding:8px 10px; border:1px solid var(--border); border-radius:8px; }
                 table { width:100%; border-collapse:collapse; }
                 th, td { padding:10px 12px; border-bottom:1px solid var(--border); }
                 th { text-align:left; font-weight:600; background:#fff; position:sticky; top:72px; }
@@ -91,7 +119,7 @@ jobs:
                 @media (prefers-color-scheme: dark) {
                   :root { --fg:#e5e7eb; --muted:#94a3b8; --bg:#0b1020; --card:#131a2b; --link:#8ab4ff; --border:#1f2937; }
                   table tr:hover td { background:#0f1626; }
-                  header, th, footer { background:#0d1424; }
+                  header, th, .toolbar, footer { background:#0d1424; }
                 }
               </style>
             </head>
@@ -100,11 +128,16 @@ jobs:
                 <div class="wrap">
                   <h1>maven.spectraengine.org</h1>
                   <div class="muted">Static artifact index (gh-pages)</div>
+                  <nav class="breadcrumbs" id="breadcrumbs"></nav>
                 </div>
               </header>
 
               <main class="wrap">
                 <div class="panel">
+                  <div class="toolbar">
+                    <input id="search" type="search" placeholder="Filter files/folders…" />
+                    <div class="muted" id="count"></div>
+                  </div>
                   <table>
                     <thead>
                       <tr>
@@ -115,7 +148,7 @@ jobs:
                       </tr>
                     </thead>
                     <tbody>
-                      $tree
+                      $rows
                     </tbody>
                   </table>
                 </div>
@@ -124,12 +157,72 @@ jobs:
               <footer class="wrap">
                 Generated by GitHub Actions
               </footer>
+
+            <script>
+              // render breadcrumbs from the current path
+              (function renderCrumbs(){
+                const bc = document.getElementById('breadcrumbs');
+                if(!bc) return;
+                bc.innerHTML = '';
+                // location.pathname might include repo name on github.io; we use it as-is.
+                const raw = location.pathname.replace(/\/+$/,''); // no trailing slash
+                const parts = raw.split('/').filter(Boolean);
+                const make = (label, href) => {
+                  const a = document.createElement('a');
+                  a.textContent = label;
+                  a.href = href;
+                  return a;
+                };
+                // root link
+                bc.appendChild(make('root','/'));
+                let acc = '/';
+                for(let i=0;i<parts.length;i++){
+                  const seg = parts[i];
+                  bc.appendChild(Object.assign(document.createElement('span'), {className:'sep', textContent:' / '}));
+                  acc += seg + '/';
+                  bc.appendChild(make(seg, acc));
+                }
+              })();
+
+              // simple client-side search/filter
+              (function setupSearch(){
+                const input = document.getElementById('search');
+                const tbody = document.querySelector('tbody');
+                const rows = Array.from(tbody.querySelectorAll('tr'));
+                document.getElementById('count').textContent = rows.length + ' item' + (rows.length===1 ? '' : 's');
+                input.addEventListener('input', (e)=>{
+                  const q = (e.target.value || '').toLowerCase();
+                  let visible = 0;
+                  rows.forEach(r=>{
+                    const a = r.querySelector('.name a');
+                    const text = a ? a.textContent.toLowerCase() : '';
+                    const show = text.includes(q);
+                    r.style.display = show ? '' : 'none';
+                    if(show) visible++;
+                  });
+                  document.getElementById('count').textContent = visible + ' item' + (visible===1 ? '' : 's');
+                });
+              })();
+            </script>
             </body>
             </html>
             "@
 
-            $html | Out-File -FilePath artifacts/index.html -Encoding utf8
-        shell: pwsh
+              # write this index for the current directory
+              $out = Join-Path $dir "index.html"
+              $html | Out-File -FilePath $out -Encoding utf8
+
+              # recurse into child directories
+              foreach ($child in $dirs) {
+                Generate-Index $child.FullName
+              }
+            }
+
+            # Start at artifacts root
+            if (-Not (Test-Path artifacts)) { Write-Error "artifacts directory not found"; exit 1 }
+            Generate-Index (Resolve-Path artifacts).Path
+
+        #shell: pwsh
 
       - name: Add CNAME
         run: |
