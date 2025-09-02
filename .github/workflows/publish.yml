@@ -34,6 +34,10 @@ jobs:
           # Add CNAME so GitHub Pages knows the custom domain
           "maven.spectraengine.org" | Out-File -FilePath artifacts/CNAME -Encoding ASCII
 
+      - name: Include index.html
+        run: Copy-Item "index.html" "artifacts/index.html"
+        shell: pwsh
+
       - name: Deploy to Pages
         uses: peaceiris/actions-gh-pages@v4
         with:
