@@ -41,8 +41,52 @@ jobs:
           "maven.spectraengine.org" | Out-File -FilePath artifacts/CNAME -Encoding ASCII
         shell: pwsh
 
-      - name: Include index.html
-        run: Copy-Item "index.html" "artifacts/index.html"
+      - name: Generate index.html
+        run: |
+          function Get-FileTree($path, $relative) {
+            $html = "<ul>"
+            foreach ($item in Get-ChildItem -Force $path) {
+              $relPath = if ($relative) { "$relative/$($item.Name)" } else { $item.Name }
+              if ($item.PSIsContainer) {
+                $html += "<li><strong>$($item.Name)/</strong>"
+                $html += Get-FileTree $item.FullName $relPath
+                $html += "</li>"
+              } else {
+                $html += "<li><a href='$relPath'>$($item.Name)</a></li>"
+              }
+            }
+            $html += "</ul>"
+            return $html
+          }
+
+          $tree = Get-FileTree "artifacts" ""
+          $html = @"
+          <!DOCTYPE html>
+          <html>
+          <head>
+            <meta charset='UTF-8'>
+            <title>maven.spectraengine.org</title>
+            <style>
+              body { font-family: sans-serif; padding: 1em; }
+              ul { list-style-type: none; }
+              li { margin: 2px 0; }
+              a { text-decoration: none; color: #0366d6; }
+              a:hover { text-decoration: underline; }
+            </style>
+          </head>
+          <body>
+            <h1>maven.spectraengine.org</h1>
+            $tree
+          </body>
+          </html>
+          "@
+
+          $html | Out-File -FilePath artifacts/index.html -Encoding utf8
+        shell: pwsh
+
+      - name: Add CNAME
+        run: |
+          "maven.spectraengine.org" | Out-File -FilePath artifacts/CNAME -Encoding ASCII
         shell: pwsh
 
       - name: Deploy to Pages
