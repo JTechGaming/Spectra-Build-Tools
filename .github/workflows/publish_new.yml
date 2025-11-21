@@ -56,13 +56,22 @@ jobs:
       - name: Copy artifact
         run: |
           New-Item -ItemType Directory -Force -Path "artifacts_repo/artifacts/${{ github.repository }}/$env:GITHUB_REF_NAME"
-          Copy-Item -Recurse -Force "artifacts/*" "artifacts_repo/artifacts/${{ github.repository }}/$env:GITHUB_REF_NAME/"
+          Copy-Item -Recurse -Force "artifacts/*" "artifacts_repo/"
+        shell: pwsh
+
+      - name: Configure Git identity
+        run: |
+          git config --global user.email "actions@github.com"
+          git config --global user.name "GitHub Actions"
         shell: pwsh
 
       - name: Commit and push
         run: |
           cd artifacts_repo
+
           git add .
-          git commit -m "Add artifact from ${{ github.repository }} version $env:GITHUB_REF_NAME"
+          git commit -m "Add artifact from ${{ github.repository }} version $env:GITHUB_REF_NAME" || echo "No changes to commit"
+
           git push
         shell: pwsh
+
