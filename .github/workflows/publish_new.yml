@@ -6,6 +6,9 @@ on:
       - 'v*'        # only on version tags
   workflow_dispatch:
 
+permissions:
+  contents: read   # minimal permissions for checkout
+
 jobs:
   publish:
     runs-on: windows-latest
