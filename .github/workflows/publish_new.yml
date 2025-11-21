@@ -15,7 +15,7 @@ jobs:
 
       - name: Build
         run: |
-          ./build_script.sh   # or CMake, whatever
+          ./build_script.sh
 
       - name: Package
         run: |
@@ -25,7 +25,7 @@ jobs:
       - name: Publish to SpectraArtifacts
         uses: actions/checkout@v4
         with:
-          repository: <YOUR_USERNAME>/SpectraArtifacts
+          repository: JTechGaming/SpectraArtifacts
           token: ${{ secrets.PAT_REPO_PUSH }}
           path: artifacts_repo
 
