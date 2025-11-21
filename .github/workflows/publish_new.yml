@@ -6,21 +6,45 @@ on:
       - 'v*'        # only on version tags
   workflow_dispatch:
 
+permissions:
+  contents: read   # minimal permissions for checkout
+
 jobs:
   publish:
-    runs-on: ubuntu-latest
+    runs-on: windows-latest
 
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v4
 
-      - name: Build
-        run: |
-          ./build_script.sh
+      - name: Set up MSBuild
+        uses: microsoft/setup-msbuild@v2
 
-      - name: Package
+      - name: Build with MSBuild
+        run: msbuild Spectra-Build-Tools.sln /p:Configuration=Release
+
+      - name: Package Artifacts
         run: |
-          mkdir output
-          zip -r output/artifact.zip build/
+          if ("${env:GITHUB_REF}" -like "refs/tags/v*") {
+            $VERSION = "${env:GITHUB_REF}" -replace "refs/tags/v", ""
+          } else {
+            $sha = "${env:GITHUB_SHA}"
+            if ($sha -and $sha.Length -ge 7) {
+              $VERSION = $sha.Substring(0,7)
+            } else {
+              $VERSION = $sha  # use full SHA if shorter than 7
+            }
+          }
+
+          echo "Using version: $VERSION"
+
+          mkdir "artifacts/org/spectraengine/sbt/$VERSION" -Force
+          Copy-Item "x64/Release/*.dll" "artifacts/org/spectraengine/sbt/$VERSION/sbt-$VERSION-windows-x64.dll"
+          Copy-Item "x64/Release/*.exe" "artifacts/org/spectraengine/sbt/$VERSION/sbt-$VERSION-windows-x64.exe"
+
+          # Add CNAME so GitHub Pages knows the custom domain
+          "maven.spectraengine.org" | Out-File -FilePath artifacts/CNAME -Encoding ASCII
+        shell: pwsh
 
       - name: Publish to SpectraArtifacts
         uses: actions/checkout@v4
@@ -31,12 +55,14 @@ jobs:
 
       - name: Copy artifact
         run: |
-          mkdir -p artifacts_repo/artifacts/${{ github.repository }}/$GITHUB_REF_NAME
-          cp output/artifact.zip artifacts_repo/artifacts/${{ github.repository }}/$GITHUB_REF_NAME/
+          New-Item -ItemType Directory -Force -Path "artifacts_repo/artifacts/${{ github.repository }}/$env:GITHUB_REF_NAME"
+          Copy-Item -Recurse -Force "artifacts/*" "artifacts_repo/artifacts/${{ github.repository }}/$env:GITHUB_REF_NAME/"
+        shell: pwsh
 
       - name: Commit and push
         run: |
           cd artifacts_repo
           git add .
-          git commit -m "Add artifact from ${{ github.repository }} version $GITHUB_REF_NAME"
+          git commit -m "Add artifact from ${{ github.repository }} version $env:GITHUB_REF_NAME"
           git push
+        shell: pwsh
