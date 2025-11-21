@@ -25,14 +25,29 @@ jobs:
           if ("${env:GITHUB_REF}" -like "refs/tags/v*") {
             $VERSION = "${env:GITHUB_REF}" -replace "refs/tags/v", ""
           } else {
-            $VERSION = "${env:GITHUB_SHA}".Substring(0,7)  # fallback to short commit hash
+            $sha = "${env:GITHUB_SHA}"
+            if ($sha -and $sha.Length -ge 7) {
+              $VERSION = $sha.Substring(0,7)
+            } else {
+              $VERSION = $sha  # use full SHA if shorter than 7
+            }
           }
 
           echo "Using version: $VERSION"
 
           mkdir "artifacts/org/spectraengine/sbt/$VERSION" -Force
-          Copy-Item "x64/Release/*.dll" "artifacts/org/spectraengine/sbt/$VERSION/sbt-$VERSION-windows-x64.dll"
-          Copy-Item "x64/Release/*.exe" "artifacts/org/spectraengine/sbt/$VERSION/sbt-$VERSION-windows-x64.exe"
+          
+          # Copy DLL files - handle multiple files properly
+          $dllFiles = Get-ChildItem "x64/Release/*.dll" -ErrorAction SilentlyContinue
+          foreach ($dll in $dllFiles) {
+            Copy-Item $dll.FullName "artifacts/org/spectraengine/sbt/$VERSION/sbt-$VERSION-windows-x64.dll"
+          }
+          
+          # Copy EXE files - handle multiple files properly
+          $exeFiles = Get-ChildItem "x64/Release/*.exe" -ErrorAction SilentlyContinue
+          foreach ($exe in $exeFiles) {
+            Copy-Item $exe.FullName "artifacts/org/spectraengine/sbt/$VERSION/sbt-$VERSION-windows-x64.exe"
+          }
 
           # Add CNAME so GitHub Pages knows the custom domain
           "maven.spectraengine.org" | Out-File -FilePath artifacts/CNAME -Encoding ASCII
