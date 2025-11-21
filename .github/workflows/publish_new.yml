@@ -1,0 +1,42 @@
+name: Publish Artifact
+
+on:
+  push:
+    tags:
+      - 'v*'        # only on version tags
+  workflow_dispatch:
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build
+        run: |
+          ./build_script.sh   # or CMake, whatever
+
+      - name: Package
+        run: |
+          mkdir output
+          zip -r output/artifact.zip build/
+
+      - name: Publish to SpectraArtifacts
+        uses: actions/checkout@v4
+        with:
+          repository: <YOUR_USERNAME>/SpectraArtifacts
+          token: ${{ secrets.PAT_REPO_PUSH }}
+          path: artifacts_repo
+
+      - name: Copy artifact
+        run: |
+          mkdir -p artifacts_repo/artifacts/${{ github.repository }}/$GITHUB_REF_NAME
+          cp output/artifact.zip artifacts_repo/artifacts/${{ github.repository }}/$GITHUB_REF_NAME/
+
+      - name: Commit and push
+        run: |
+          cd artifacts_repo
+          git add .
+          git commit -m "Add artifact from ${{ github.repository }} version $GITHUB_REF_NAME"
+          git push
